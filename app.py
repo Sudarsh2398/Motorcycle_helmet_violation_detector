@@ -32,6 +32,7 @@ import csv
 from PIL import Image
 import tempfile
 import re
+import pandas as pd
 
 # ======================
 # CONFIGURATION
@@ -560,9 +561,21 @@ with st.sidebar:
         with open(CSV_FILE, "r") as f:
             lines = f.readlines()
             if len(lines) > 1:
+                violation_lines = lines[1:]  # Skip header
+                recent_violations = violation_lines[-5:][::-1]  # Last 5, newest first
                 st.write("**Recent Violations:**")
-                for line in lines[-5:1:-1]:
-                    st.code(line.strip())
+                for line in recent_violations:
+                    parts = line.strip().split(',')
+                    if len(parts) >= 2:
+                        raw_ts, plate = parts[0], parts[1]
+                        try:
+                            # Parse YYYYMMDD_HHMMSS
+                            dt = datetime.strptime(raw_ts, "%Y%m%d_%H%M%S")
+                            formatted_time = dt.strftime("%d %b %Y, %I:%M:%S %p")
+                            st.code(f"{formatted_time} | {plate}")
+                        except Exception:
+                            # Fallback if parsing fails
+                            st.code(f"{raw_ts} | {plate}")
     else:
         st.info("📭 No violations yet")
 
