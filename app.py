@@ -568,6 +568,8 @@ with st.sidebar:
 
     st.divider()
     st.caption("Built with ❤️ using Streamlit • YOLOv11n • EasyOCR")
+    st.divider()
+    st.caption("Built by SAI SUDHARSAN ❤️")
 
 # ======================
 # IMAGE TAB
