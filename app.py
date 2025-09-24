@@ -558,24 +558,65 @@ with st.sidebar:
     if os.path.exists(CSV_FILE):
         with open(CSV_FILE, "r") as f:
             st.download_button("📥 Download Violations CSV", f, "violations_log.csv", "text/csv", key='download-csv')
+        
+        # Read all violations
         with open(CSV_FILE, "r") as f:
             lines = f.readlines()
-            if len(lines) > 1:
-                violation_lines = lines[1:]  # Skip header
-                recent_violations = violation_lines[-5:][::-1]  # Last 5, newest first
-                st.write("**Recent Violations:**")
-                for line in recent_violations:
-                    parts = line.strip().split(',')
-                    if len(parts) >= 2:
-                        raw_ts, plate = parts[0], parts[1]
-                        try:
-                            # Parse YYYYMMDD_HHMMSS
-                            dt = datetime.strptime(raw_ts, "%Y%m%d_%H%M%S")
-                            formatted_time = dt.strftime("%d %b %Y, %I:%M:%S %p")
-                            st.code(f"{formatted_time} | {plate}")
-                        except Exception:
-                            # Fallback if parsing fails
-                            st.code(f"{raw_ts} | {plate}")
+        
+        if len(lines) > 1:
+            violation_lines = lines[1:]  # Skip header
+            recent_violations = violation_lines[-5:][::-1]  # Last 5, newest first
+            st.write("**Recent Violations:**")
+            
+            for idx, line in enumerate(recent_violations):
+                parts = line.strip().split(',')
+                if len(parts) < 4:
+                    continue
+                    
+                raw_ts, plate, source, confirmed = parts[0], parts[1], parts[2], parts[3]
+                
+                # Format timestamp for display
+                try:
+                    dt = datetime.strptime(raw_ts, "%Y%m%d_%H%M%S")
+                    formatted_time = dt.strftime("%d %b %Y, %I:%M:%S %p")
+                    display_text = f"{formatted_time} | {plate}"
+                except Exception:
+                    display_text = f"{raw_ts} | {plate}"
+                
+                # Create a container for each violation
+                col_text, col_delete = st.sidebar.columns([4, 1])
+                col_text.code(display_text)
+                
+                # Unique key for button
+                button_key = f"delete_{raw_ts}_{plate}_{idx}"
+                if col_delete.button("🗑️", key=button_key, help="Delete this violation"):
+                    # --- 1. Remove from CSV ---
+                    with open(CSV_FILE, "w", newline='') as f_out:
+                        writer = csv.writer(f_out)
+                        # Write header
+                        writer.writerow(["Timestamp", "Plate Number", "Source", "Violation Confirmed"])
+                        # Rewrite all lines EXCEPT the one to delete
+                        for original_line in lines[1:]:
+                            if raw_ts in original_line and plate in original_line:
+                                continue  # Skip this line
+                            f_out.write(original_line)
+                    
+                    # --- 2. Delete associated images ---
+                    for img_type in ["violation", "plate"]:
+                        # Pattern: violation_20250924_221214_*.jpg or plate_20250924_221214_*.jpg
+                        pattern = os.path.join(OUTPUT_DIR, f"{img_type}_{raw_ts}_*")
+                        import glob
+                        for img_path in glob.glob(pattern):
+                            try:
+                                os.remove(img_path)
+                                print(f"Deleted: {img_path}")
+                            except Exception as e:
+                                print(f"Failed to delete {img_path}: {e}")
+                    
+                    # --- 3. Refresh the page ---
+                    st.rerun()
+        else:
+            st.info("📭 No violations yet")
     else:
         st.info("📭 No violations yet")
 
